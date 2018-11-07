@@ -1,16 +1,11 @@
 import json
-import copy
 from osgeo import gdal
-from collections import OrderedDict
-
 from xmljson import badgerfish as bf
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as md
-import geojson
-from shapely.geometry import shape
-from shapely.ops import transform
 
-from gdaljson.projection import SpatialRef
+from projection import SpatialRef
+from transformations import loads
 
 class Raster(object):
 
@@ -18,7 +13,7 @@ class Raster(object):
         if type(vrt) is dict:
             self.data = vrt
         else:
-            self.data = dict(bf.data(ET.fromstring(vrt)))
+            self.data = loads(vrt)
         self.srs = SpatialRef(self.data['VRTDataset']['SRS']['$'])
 
     @property
