@@ -4,8 +4,8 @@ from xmljson import badgerfish as bf
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as md
 
-from projection import SpatialRef
-from transformations import loads
+from gdaljson.projection import SpatialRef
+from gdaljson.transformations import loads
 
 class Raster(object):
 
@@ -14,7 +14,10 @@ class Raster(object):
             self.data = vrt
         else:
             self.data = loads(vrt)
-        self.srs = SpatialRef(self.data['VRTDataset']['SRS']['$'])
+        try:
+            self.srs = SpatialRef(self.data['VRTDataset']['SRS']['$'])
+        except KeyError:
+            self.srs = None
 
     @property
     def bitdepth(self):
@@ -88,7 +91,7 @@ class Raster(object):
             self.data['VRTDataset']['VRTRasterBand'][band][self.source]['DstRect']['@ySize'] = offset[3]
 
     def pprint(self):
-        print(json.dumps(self.data, indent=2))
+        print(json.dumps(self.data, indent=1))
 
     def to_xml(self):
         vrtxml = ET.tostring(bf.etree(self.data)[0])
