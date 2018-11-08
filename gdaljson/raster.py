@@ -114,20 +114,20 @@ class Raster(object):
         if profile:
             p = profile(self)
             pname = type(p).__name__.upper()
+
             if 'COG' in pname:
                 _outfile = '/vsimem/testing.tif'
             else:
                 _outfile = outfile
             out_ds = gdal.Translate(_outfile, self.to_gdal(), creationOptions=p.creation_options())
 
-            if hasattr(p, "overview"):
-                for k,v in p.overview.options().items():
-                    gdal.SetConfigOption(k, v.upper())
-            out_ds.BuildOverviews(p.overview.resample, p.overview.overviews())
+            if hasattr(p, "overview_options"):
+                for k,v in p.overview_options().items():
+                    gdal.SetConfigOption(k, v)
+            out_ds.BuildOverviews(p.ovr_resample, p.overviews())
 
             if 'COG' in pname:
                 gdal.Translate(outfile, out_ds, creationOptions=p.creation_options()+['COPY_SRC_OVERVIEWS=YES'])
-            else:
-                out_ds = None
+            out_ds = None
         else:
             gdal.Translate(outfile, self.to_gdal())

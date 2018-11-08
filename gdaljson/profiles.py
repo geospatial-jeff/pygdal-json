@@ -7,100 +7,77 @@ class ImageBase(object):
         self.data = data
 
         #Creation options
-        self.__compression = None
-        self.__zlevel = None
-        self.__predictor = None
-        self.__blocksize = self.data.blocksize
-        self.__tiled = True if self.blocksize[0] == self.blocksize[1] else False
+        self.__COMPRESS = None
+        self.__ZLEVEL = None
+        self.__PREDICTOR = None
+        self.__BLOCKXSIZE = self.data.blocksize[0]
+        self.__BLOCKYSIZE = self.data.blocksize[1]
+        self.__TILED = "TRUE" if self.blocksize[0] == self.blocksize[1] else "FALSE"
 
-        self.__num_threads = 'ALL_CPUS'
-        self.__bigtiff = "IF_SAFER"
+        self.__NUM_THREADS = 'ALL_CPUS'
+        self.__BIGTIFF = "IF_SAFER"
 
     @property
     def predictor(self):
-        return self.__predictor
+        return self.__PREDICTOR
 
     @predictor.setter
     def predictor(self, value):
-        self.__predictor = value
+        self.__PREDICTOR = value
 
     @property
     def compression(self):
-        return self.__compression
+        return self.__COMPRESS
 
     @compression.setter
     def compression(self, value):
-        self.__compression = value
+        self.__COMPRESS = value
 
     @property
     def zlevel(self):
-        return self.__zlevel
+        return self.__ZLEVEL
 
     @zlevel.setter
     def zlevel(self, value):
-        self.__zlevel = value
+        self.__ZLEVEL = value
 
     @property
     def blocksize(self):
-        return self.__blocksize
+        return [self.__BLOCKXSIZE, self.__BLOCKYSIZE]
 
     @blocksize.setter
     def blocksize(self, value):
-        self.__blocksize = value
+        self.__BLOCKXSIZE = value[0]
+        self.__BLOCKYSIZE = value[1]
 
     @property
     def bigtiff(self):
-        return self.__bigtiff
+        return self.__BIGTIFF
 
     @bigtiff.setter
     def bigtiff(self, value):
-        self.__bigtiff = value
+        self.__BIGTIFF = value
 
     @property
     def num_threads(self):
-        return self.__num_threads
+        return self.__NUM_THREADS
 
     @num_threads.setter
     def num_threads(self, value):
-        self.__num_threads = value
-
-    @property
-    def zoom(self):
-        return self.__zoom
-
-    @zoom.setter
-    def zoom(self, value):
-        self.__zoom = value
-
-    @property
-    def resample(self):
-        return self.__resample
-
-    @resample.setter
-    def resample(self, value):
-        self.__resample = value
+        self.__NUM_THREADS = value
 
     @property
     def tiled(self):
-        return self.__tiled
+        return self.__TILED
 
     @tiled.setter
     def tiled(self, value):
-        self.__tiled = value
+        self.__TILED = value
 
     def creation_options(self):
-        accepted = ["tiled", "blocksize", "num_threads", "bigtiff", "predictor", "zlevel"]
-        creation_list = []
-        for item in accepted:
-            value = getattr(self, item)
-            if value:
-                if item == "blocksize":
-                    creation_list += [f"BLOCKXSIZE={value}"]
-                    creation_list += [f"BLOCKYSIZE={value}"]
-                else:
-                    value = str(value)
-                    creation_list.append(f"{item.upper()}={value.upper()}")
-        return creation_list
+        # accepted = ["COMPRESSION", "ZLEVEL"]
+        opts = {k.split('__')[-1]:v for (k,v) in self.__dict__.items() if 'ImageBase' in k and v}
+        return [f'{k}={v}' for k,v in opts.items()]
 
 class Overview():
 
@@ -120,11 +97,11 @@ class Overview():
         self.__NUM_THREADS_OVERVIEW = 'ALL_CPUS'
 
     @property
-    def resample(self):
+    def ovr_resample(self):
         return self.__resample
 
-    @resample.setter
-    def resample(self, value):
+    @ovr_resample.setter
+    def ovr_resample(self, value):
         self.__resample = value
 
     @property
@@ -134,49 +111,48 @@ class Overview():
                      (self.get_resolution() * 256), 2))
 
     @property
-    def tiled(self):
+    def ovr_tiled(self):
         return self.__TILED_OVERVIEW
 
-    @tiled.setter
-    def tiled(self, value):
+    @ovr_tiled.setter
+    def ovr_tiled(self, value):
         self.__TILED_OVERVIEW = value
 
     @property
-    def blocksize(self):
+    def ovr_blocksize(self):
         return [self.__BLOCKXSIZE_OVERVIEW, self.__BLOCKYSIZE_OVERVIEW]
 
-    @blocksize.setter
-    def blocksize(self, value):
+    @ovr_blocksize.setter
+    def ovr_blocksize(self, value):
         self.__BLOCKXSIZE_OVERVIEW = value[0]
         self.__BLOCKYSIZE_OVERVIEW = value[1]
 
     @property
-    def compression(self):
+    def ovr_compression(self):
         return self.__COMPRESS_OVERVIEW
 
-    @compression.setter
-    def compression(self, value):
+    @ovr_compression.setter
+    def ovr_compression(self, value):
         self.__COMPRESS_OVERVIEW = value
 
     @property
-    def predictor(self):
+    def ovr_predictor(self):
         return self.__PREDICTOR_OVERVIEW
 
-    @predictor.setter
-    def predictor(self, value):
+    @ovr_predictor.setter
+    def ovr_predictor(self, value):
         self.__PREDICTOR_OVERVIEW = value
 
     @property
-    def zlevel(self):
+    def ovr_zlevel(self):
         return self.__ZLEVEL_OVERVIEW
 
-    @zlevel.setter
-    def zlevel(self, value):
+    @ovr_zlevel.setter
+    def ovr_zlevel(self, value):
         self.__ZLEVEL_OVERVIEW = value
 
-    def options(self):
-        forbidden = ['_Overview__resample', '_Overview__zoom', 'data']
-        opts = {k[11:]:v for (k,v) in self.__dict__.items() if k not in forbidden and v}
+    def overview_options(self):
+        opts = {k.split('__')[-1]:v for (k,v) in self.__dict__.items() if 'Overview' in k and v}
         return opts
 
     def get_resolution(self):
@@ -202,19 +178,18 @@ class Overview():
                 break
         return overviews
 
-class COG(ImageBase):
+class COG(ImageBase, Overview):
 
     def __init__(self, data):
         ImageBase.__init__(self, data)
 
         #Configurating image
-        self.tiled = True
-        self.blocksize = '512'
+        self.tiled = "TRUE"
+        self.blocksize = ['512', '512']
         self.set_predictor()
         self.set_compression()
 
         #Configurating overviews
-        self.overview = Overview(data)
         self.configure_overviews()
 
     def set_predictor(self):
@@ -231,9 +206,9 @@ class COG(ImageBase):
             self.zlevel = '9'
 
     def configure_overviews(self):
-        self.overview.tiled = 'YES'
-        self.overview.blocksize = [self.blocksize, self.blocksize]
-        self.overview.compression = self.compression
-        self.overview.predictor = self.predictor
-        self.overview.zlevel = self.zlevel
-        self.overview.resample = 'LANCZOS'
+        self.ovr_tiled = 'YES'
+        self.ovr_blocksize = self.blocksize
+        self.ovr_compression = self.compression
+        self.ovr_predictor = self.predictor
+        self.ovr_zlevel = self.zlevel
+        self.ovr_resample = 'LANCZOS'
