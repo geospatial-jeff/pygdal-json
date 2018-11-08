@@ -76,6 +76,13 @@ class Raster(object):
     def source(self):
         return [x for x in list(self.data['VRTDataset']['VRTRasterBand'][0]) if 'Source' in x][0]
 
+    @property
+    def extent(self):
+        shape = self.shape
+        ymin = self.tly - (shape[1]*self.yres)
+        xmax = self.tlx + (shape[0]*self.xres)
+        return [self.tlx, xmax, ymin, self.tly]
+
     def update_src_rect(self, offset):
         for band in range(self.shape[2]):
             self.data['VRTDataset']['VRTRasterBand'][band][self.source]['SrcRect']['@xOff'] = offset[0]
@@ -106,6 +113,21 @@ class Raster(object):
     def to_file(self, outfile, profile=None):
         if profile:
             p = profile(self)
-            gdal.Translate(outfile, self.to_gdal(), creationOptions=p.creation_options())
+            pname = type(p).__name__.upper()
+            if 'COG' in pname:
+                _outfile = '/vsimem/testing.tif'
+            else:
+                _outfile = outfile
+            out_ds = gdal.Translate(_outfile, self.to_gdal(), creationOptions=p.creation_options())
+
+            if hasattr(p, "overview"):
+                for k,v in p.overview.options().items():
+                    gdal.SetConfigOption(k, v.upper())
+            out_ds.BuildOverviews(p.overview.resample, p.overview.overviews())
+
+            if 'COG' in pname:
+                gdal.Translate(outfile, out_ds, creationOptions=p.creation_options()+['COPY_SRC_OVERVIEWS=YES'])
+            else:
+                out_ds = None
         else:
             gdal.Translate(outfile, self.to_gdal())
