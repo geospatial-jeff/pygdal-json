@@ -63,3 +63,7 @@ Pygdal-json uses the [xmljson](https://github.com/sanand0/xmljson) module to par
 ```
 
 This allows pygdal-json to JSON-serialize common GDAL operations such as `gdal.Warp` and `gdal.Translate`.
+
+### Resources
+- [GDAL VRT Tutorial](https://www.gdal.org/gdal_vrttut.html)
+- [VRT XML Schema](https://svn.osgeo.org/gdal/trunk/gdal/data/gdalvrt.xsd)
