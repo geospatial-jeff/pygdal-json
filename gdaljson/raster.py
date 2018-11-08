@@ -98,10 +98,18 @@ class Raster(object):
         xml = md.parseString(vrtxml)
         print(xml.toprettyxml())
 
-    def to_gdal(self):
+    def to_gdal(self, profile=None):
         vrtxml = ET.tostring(bf.etree(self.data)[0])
+        if profile:
+            test = profile(self)
+            print(test.creation_options())
+
         ds = gdal.Open(vrtxml)
         return ds
 
-    def to_file(self, outfile):
-        gdal.Translate(outfile, self.to_gdal())
+    def to_file(self, outfile, profile=None):
+        if profile:
+            p = profile(self)
+            gdal.Translate(outfile, self.to_gdal(), creationOptions=p.creation_options())
+        else:
+            gdal.Translate(outfile, self.to_gdal())
