@@ -72,6 +72,11 @@ class Raster(object):
     def nodata(self):
         return self.data['VRTDataset']['VRTRasterBand'][0]['NoDataValue']['$']
 
+    @nodata.setter
+    def nodata(self, value):
+        for i in range(self.shape[2]):
+           self.data['VRTDataset']['VRTRasterBand'][i]['NoDataValue']['$'] = value
+
     @property
     def source(self):
         return [x for x in list(self.data['VRTDataset']['VRTRasterBand'][0]) if 'Source' in x][0]

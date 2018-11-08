@@ -4,11 +4,11 @@ import gdaljson
 class ArgumentError(BaseException):
     pass
 
-def translate(input_vrt, bandList=None, srcWin=None, projWin=None, height=None, width=None, xRes=None, yRes=None):
+def translate(workingvrt, bandList=None, srcWin=None, projWin=None, height=None, width=None, xRes=None, yRes=None, nodata=None):
 
     """JSON encoded wrapper of gdal.Translate"""
 
-    workingvrt = gdaljson.Raster(copy.deepcopy(input_vrt))
+    # workingvrt = copy.deepcopy(input_vrt)
     source = workingvrt.source
     gt = copy.deepcopy(workingvrt.gt)
 
@@ -72,4 +72,7 @@ def translate(input_vrt, bandList=None, srcWin=None, projWin=None, height=None, 
     #Update raster size to match bands
     workingvrt.data['VRTDataset']['@rasterXSize'] = workingvrt.bandshape[0]
     workingvrt.data['VRTDataset']['@rasterYSize'] = workingvrt.bandshape[1]
+
+    if nodata:
+        workingvrt.nodata = nodata
     return workingvrt
