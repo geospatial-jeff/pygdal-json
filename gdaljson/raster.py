@@ -59,18 +59,21 @@ class Raster(object):
 
     @property
     def filename(self):
-        return self.data['VRTDataset']['VRTRasterBand'][0]['SimpleSource']['SourceFilename']['$']
+        return self.data['VRTDataset']['VRTRasterBand'][0][self.source]['SourceFilename']['$']
 
     @property
     def blocksize(self):
         try:
             return [self.data['VRTDataset']['BlockXSize']['$'], self.data['VRTDataset']['BlockXSize']['$']]
         except KeyError:
-            return [self.data['VRTDataset']['VRTRasterBand'][0]['SimpleSource']['SourceProperties']['@BlockXSize'], self.data['VRTDataset']['VRTRasterBand'][0]['SimpleSource']['SourceProperties']['@BlockYSize']]
+            return [self.data['VRTDataset']['VRTRasterBand'][0][self.source]['SourceProperties']['@BlockXSize'], self.data['VRTDataset']['VRTRasterBand'][0][self.source]['SourceProperties']['@BlockYSize']]
 
     @property
     def nodata(self):
-        return self.data['VRTDataset']['VRTRasterBand'][0]['NoDataValue']['$']
+        try:
+            return self.data['VRTDataset']['VRTRasterBand'][0]['NoDataValue']['$']
+        except:
+            return None
 
     @nodata.setter
     def nodata(self, value):
