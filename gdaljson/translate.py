@@ -1,14 +1,13 @@
 import copy
-import gdaljson
 
 class ArgumentError(BaseException):
     pass
 
-def translate(workingvrt, bandList=None, srcWin=None, projWin=None, height=None, width=None, xRes=None, yRes=None, nodata=None):
+def translate(input_vrt, bandList=None, srcWin=None, projWin=None, height=None, width=None, xRes=None, yRes=None, nodata=None):
 
     """JSON encoded wrapper of gdal.Translate"""
 
-    # workingvrt = copy.deepcopy(input_vrt)
+    workingvrt = copy.deepcopy(input_vrt)
     source = workingvrt.source
     gt = copy.deepcopy(workingvrt.gt)
 
