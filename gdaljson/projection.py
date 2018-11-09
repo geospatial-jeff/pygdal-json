@@ -1,13 +1,10 @@
-import json
-import os
-
-wkt = json.loads(open(os.path.join(os.path.split(os.path.realpath(__file__))[0], 'projections/gdal_epsg.json')).read())
+import requests
 
 class SpatialRef():
 
     def __init__(self, wkt_string):
         self.epsg = wkt_string.split(",")[-1][1:-3]
-        self.wkt = wkt[self.epsg][0]
+        self.wkt = wkt(self.epsg)
 
     @property
     def linearunit(self):
@@ -18,3 +15,9 @@ class SpatialRef():
         if self.wkt.startswith('GEOGCS'):
             return True
         return False
+
+def wkt(epsg):
+    url = f'http://epsg.io/?q={epsg}&format=json'
+    resp = requests.get(url)
+    data = resp.json()
+    return data['results'][0]['wkt']
