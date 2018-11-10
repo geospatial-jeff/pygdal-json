@@ -6,7 +6,7 @@ import math
 class ArgumentError(BaseException):
     pass
 
-def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None):
+def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, resampleAlg="NearestNeighbor"):
     workingvrt = copy.deepcopy(in_vrt)
     fname = workingvrt.filename
     gt = copy.deepcopy(in_vrt.gt)
@@ -23,7 +23,7 @@ def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None):
         "$": 67108900.0
     },
         "ResampleAlg": {
-            "$": "NearestNeighbour"
+            "$": resampleAlg
         },
         "WorkingDataType": {
             "$": workingvrt.bitdepth
