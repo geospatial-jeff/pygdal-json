@@ -1,12 +1,17 @@
 from gdaljson.projection import wkt
 import copy
+import functools
 from pyproj import Proj, transform
+from shapely.geometry import shape
+from shapely.ops import transform as transform_geom
 import math
+import geojson
+import json
 
 class ArgumentError(BaseException):
     pass
 
-def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, resampleAlg="NearestNeighbour", warpMemoryLimit=64*1024*1024, dstAlpha=False):
+def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, resampleAlg="NearestNeighbour", warpMemoryLimit=64*1024*1024, dstAlpha=False, clipper=None, cropToCutline=False):
     workingvrt = copy.deepcopy(in_vrt)
     fname = workingvrt.filename
     gt = copy.deepcopy(in_vrt.gt)
@@ -105,6 +110,13 @@ def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, res
                             }
                         }}
         gdalwarp_opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer'].update(transformer)
+        #Update with new geotransform
+        gdalwarp_opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstGeoTransform']['$'] = ','.join([str(x) for x in gt])
+        gdalwarp_opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstInvGeoTransform']['$'] = ','.join([str(x) for x in inverse_geotransform(gt)])
+        workingvrt.data['VRTDataset']['GeoTransform']['$'] = ','.join([str(x) for x in gt])
+        workingvrt.data['VRTDataset']['@rasterXSize'] = cols
+        workingvrt.data['VRTDataset']['@rasterYSize'] = rows
+
 
     for i in range(workingvrt.shape[2]):
         gdalwarp_opts['BandList']['BandMapping'].append({"@src": i+1,
@@ -122,13 +134,49 @@ def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, res
                                                              "$": 0
                                                          }
                                                          })
-    #Update with new geotransform
-    gdalwarp_opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstGeoTransform']['$'] = ','.join([str(x) for x in gt])
-    gdalwarp_opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstInvGeoTransform']['$'] = ','.join([str(x) for x in inverse_geotransform(gt)])
-    workingvrt.data['VRTDataset']['GeoTransform']['$'] = ','.join([str(x) for x in gt])
-    workingvrt.data['VRTDataset']['@rasterXSize'] = cols
-    workingvrt.data['VRTDataset']['@rasterYSize'] = rows
 
+    if clipper:
+        # Open the vector
+        if hasattr(clipper, '__geo_interface__'):
+            geom = shape(clipper)
+        elif type(clipper) is str and clipper.endswith('.geojson'):
+            geom = shape(geojson.load(open(clipper))['geometry'])
+        elif type(clipper) is dict:
+            geom = shape(geojson.load(json.dumps(clipper)))
+        else:
+            raise ValueError("Invalid clipper argument.")
+
+        #Reproject geometry if image has been reprojected
+        if dstSRS:
+            project = functools.partial(transform, in_srs, out_srs)
+            geom = transform_geom(project, geom)
+
+        def coords_to_pix(x,y,z=None):
+            return ((x - gt[0])/gt[1], (gt[3] - y)/-gt[5])
+
+        # Calculate new GT and image size based on geometry
+        bounds = geom.bounds
+        if not cropToCutline:
+            clip_gt = workingvrt.gt
+        else:
+            xsize, ysize = [int((bounds[2] - bounds[0]) / workingvrt.xres), int((bounds[3] - bounds[1]) / workingvrt.yres)]
+            clip_gt = [bounds[0], (bounds[2] - bounds[0]) / xsize, 0, bounds[3], 0, -((bounds[3] - bounds[1]) / ysize)]
+
+            workingvrt.data['VRTDataset']['@rasterXSize'] = xsize
+            workingvrt.data['VRTDataset']['@rasterYSize'] = ysize
+            workingvrt.data['VRTDataset']['GeoTransform']['$'] = ','.join([str(x) for x in clip_gt])
+
+            #Adjust blocksize
+            if min(in_vrt.blocksize) < min(xsize, ysize):
+                workingvrt.data['VRTDataset']['BlockXSize'] = {'$': xsize}
+                workingvrt.data['VRTDataset']['BlockYSize'] = {'$': ysize}
+            else:
+                workingvrt.data['VRTDataset']['BlockXSize'] = {'$': in_vrt.blocksize[0]}
+                workingvrt.data['VRTDataset']['BlockYSize'] = {'$': in_vrt.blocksize[1]}
+
+        gdalwarp_opts['Cutline'] = {'$': transform_geom(coords_to_pix, geom).to_wkt()}
+        gdalwarp_opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstGeoTransform']['$'] = ','.join([str(x) for x in clip_gt])
+        gdalwarp_opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstInvGeoTransform']['$'] = ','.join([str(x) for x in inverse_geotransform(clip_gt)])
 
 
     if height or width:
