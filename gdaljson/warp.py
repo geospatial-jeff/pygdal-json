@@ -3,7 +3,10 @@ import copy
 from pyproj import Proj, transform
 import math
 
-def warp(in_vrt, dstSRS):
+class ArgumentError(BaseException):
+    pass
+
+def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None):
     workingvrt = copy.deepcopy(in_vrt)
     fname = workingvrt.filename
     gt = copy.deepcopy(in_vrt.gt)
@@ -128,6 +131,40 @@ def warp(in_vrt, dstSRS):
 
 
     workingvrt.data['VRTDataset']['GDALWarpOptions'] = gdalwarp_opts
+
+    if height or width:
+        if (height or width) and (xRes or yRes):
+            raise ArgumentError("height/width and xRes/yRes are mutually exclusive")
+        if height and width:
+            _height = height
+            _width = width
+        else:
+            if height:
+                ratio = workingvrt.shape[1] / height
+                _width = int(round(workingvrt.shape[0] / ratio))
+                _height = height
+            elif width:
+                ratio = workingvrt.shape[0] / width
+                _height = int(workingvrt.shape[1] / ratio)
+                _width = width
+
+        gt[1] = (gt[1] * workingvrt.shape[0]) / _width  # (extent of image) / new width
+        gt[5] = (gt[5] * workingvrt.shape[1]) / _height
+        workingvrt.data['VRTDataset']['@rasterXSize'] = _width
+        workingvrt.data['VRTDataset']['@rasterYSize'] = _height
+
+    elif xRes and yRes:
+        ratiox = workingvrt.xres * workingvrt.shape[0]
+        ratioy = workingvrt.yres * workingvrt.shape[1]
+        _width = int(round(ratiox / xRes))
+        _height = int(round(ratioy / yRes))
+
+        gt[1] = xRes
+        gt[5] = -yRes
+        workingvrt.data['VRTDataset']['@rasterXSize'] = _width
+        workingvrt.data['VRTDataset']['@rasterYSize'] = _height
+
+
     return workingvrt
 
 
