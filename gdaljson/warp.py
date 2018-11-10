@@ -6,7 +6,7 @@ import math
 class ArgumentError(BaseException):
     pass
 
-def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, resampleAlg="NearestNeighbor", warpMemoryLimit=64*1024*1024):
+def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, resampleAlg="NearestNeighbour", warpMemoryLimit=64*1024*1024, dstAlpha=False):
     workingvrt = copy.deepcopy(in_vrt)
     fname = workingvrt.filename
     gt = copy.deepcopy(in_vrt.gt)
@@ -20,7 +20,7 @@ def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, res
 
     #Setup default gdalwarp options
     gdalwarp_opts = {"WarpMemoryLimit": {
-        "$": 0.1e-7 * warpMemoryLimit
+        "$": warpMemoryLimit
     },
         "ResampleAlg": {
             "$": resampleAlg
@@ -28,10 +28,10 @@ def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, res
         "WorkingDataType": {
             "$": workingvrt.bitdepth
         },
-        "Option": {
+        "Option": [{
             "@name": "INIT_DEST",
             "$": "NO_DATA"
-        },
+        }],
         "SourceDataset": {
             "@relativeToVRT": 0,
             "$": fname
@@ -130,7 +130,6 @@ def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, res
     workingvrt.data['VRTDataset']['@rasterYSize'] = rows
 
 
-    workingvrt.data['VRTDataset']['GDALWarpOptions'] = gdalwarp_opts
 
     if height or width:
         if (height or width) and (xRes or yRes):
@@ -164,7 +163,28 @@ def warp(in_vrt, dstSRS=None, height=None, width=None, xRes=None, yRes=None, res
         workingvrt.data['VRTDataset']['@rasterXSize'] = _width
         workingvrt.data['VRTDataset']['@rasterYSize'] = _height
 
+    if dstAlpha:
+        #Alpha band options
+        workingvrt.data['VRTDataset']['VRTRasterBand'].append({'@dataType': in_vrt.bitdepth,
+                                                                '@band': in_vrt.shape[2]+1,
+                                                                '@subClass': 'VRTWarpedRasterBand',
+                                                                'ColorInterp': {
+                                                                    '$': 'Alpha'
+                                                                }})
+        gdalwarp_opts['DstAlphaBand'] = {'$': workingvrt.shape[2]}
+        gdalwarp_opts['Option'].append({'@name': 'DST_ALPHA_MAX', '$': 32767})
+        gdalwarp_opts['Option'][0]['$'] = 0
 
+        #Removing nodata values from rest of VRT
+        for item in gdalwarp_opts['BandList']['BandMapping']:
+            del(item['DstNoDataReal'])
+            del(item['DstNoDataImag'])
+        allowed = ['ColorInterp', '@dataType', '@band', '@subClass', 'VRTRasterBand']
+        for d in workingvrt.data['VRTDataset']['VRTRasterBand']:
+            for (k,v) in dict(d).items():
+                if k not in allowed:
+                    del(d[k])
+    workingvrt.data['VRTDataset']['GDALWarpOptions'] = gdalwarp_opts
     return workingvrt
 
 
