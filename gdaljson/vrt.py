@@ -3,11 +3,68 @@ from xmljson import badgerfish as bf
 import xml.etree.ElementTree as ET
 import xml.dom.minidom as md
 import copy
+import math
+from pyproj import Proj, transform
+from shapely.ops import transform as geom_transform
+from shapely.geometry import shape
 
-from gdaljson.projection import SpatialRef
+from gdaljson.projection import wkt
 from gdaljson.transformations import loads
 
 from osgeo import gdal
+
+class GeoTransform(object):
+
+    @staticmethod
+    def inverse_geotransform(gt):
+        inverse = [-(gt[0] / gt[1]), 1 / gt[1], 0, gt[3] / gt[1], 0, 1 / gt[5]]
+        return inverse
+
+    @staticmethod
+    def from_element(gt_element):
+        return [float(x) for x in gt_element.split(',')]
+
+    def __init__(self, gt_element):
+        self.gt = self.from_element(gt_element)
+
+    @property
+    def tlx(self):
+        return self.gt[0]
+
+    @tlx.setter
+    def tlx(self, value):
+        self.gt[0] = value
+
+    @property
+    def tly(self):
+        return self.gt[3]
+
+    @tly.setter
+    def tly(self, value):
+        self.gt[3] = value
+
+    @property
+    def xres(self):
+        return self.gt[1]
+
+    @xres.setter
+    def xres(self, value):
+        self.gt[1] = value
+
+    @property
+    def yres(self):
+        return abs(self.gt[5])
+
+    @yres.setter
+    def yres(self, value):
+        self.gt[5] = value
+
+    def to_element(self, inverse=False):
+        if inverse:
+            return ','.join([str(x) for x in self.inverse_geotransform(self.gt)])
+        return ','.join([str(x) for x in self.gt])
+
+
 
 class VRTBase(object):
 
@@ -16,12 +73,27 @@ class VRTBase(object):
             self.data = vrt
         else:
             self.data = loads(vrt)
-        try:
-            self.srs = SpatialRef(self.data['VRTDataset']['SRS']['$'])
-        except KeyError:
-            self.srs = None
 
         self.__gt = GeoTransform(self.data['VRTDataset']['GeoTransform']['$'])
+
+    @property
+    def srs(self):
+        try:
+            return self.data['VRTDataset']['SRS']['$']
+        except KeyError:
+            print("WARNING: VRT has no coordinate system")
+            return None
+
+    @srs.setter
+    def srs(self, wkt_string):
+        self.data['VRTDataset']['SRS']['$'] = wkt_string
+
+    @property
+    def epsg(self):
+        if self.srs:
+            return self.srs.split(",")[-1][1:-3]
+        else:
+            return None
 
     @property
     def gt(self):
@@ -105,6 +177,14 @@ class VRTBase(object):
     def nodata(self, value):
         [self.data['VRTDataset']['VRTRasterBand'][i]['NoDataValue'].update({'$': value}) for i in range(self.bands)]
 
+    @property
+    def extent(self):
+        return [self.tlx,
+                self.tlx + (self.xsize*self.xres),
+                self.tly - (self.ysize*self.yres),
+                self.tly
+                ]
+
     def drop_band(self, band):
         self.data['VRTDataset']['VRTRasterBand'].pop(band - 1)
 
@@ -162,6 +242,10 @@ class VRTDataset(VRTBase):
     def __init__(self, vrt):
         VRTBase.__init__(self, vrt)
         self.source = [x for x in list(self.data['VRTDataset']['VRTRasterBand'][0]) if 'Source' in x][0]
+
+    @property
+    def filename(self):
+        return self.data['VRTDataset']['VRTRasterBand'][0][self.source]['SourceFilename']['$']
 
     @property
     def scale_ratio(self):
@@ -237,9 +321,6 @@ class VRTDataset(VRTBase):
                 self.data['VRTDataset']['VRTRasterBand'][band][new_source].update({"NODATA": {"$": self.nodata}})
                 self.data['VRTDataset']['VRTRasterBand'][band][new_source]['SourceProperties']['@BlockXSize'] = min(128,self.xsize)
                 self.data['VRTDataset']['VRTRasterBand'][band][new_source]['SourceProperties']['@BlockYSize'] = min(128,self.ysize)
-
-
-
         self.source = new_source
 
     def add_band(self):
@@ -255,8 +336,6 @@ class VRTDataset(VRTBase):
 
     def translate(self, bandList=None, srcWin=None, projWin=None, height=None, width=None, xRes=None, yRes=None,
                     nodata=None, resampleAlg=None, scaleParams=None):
-        """https://github.com/gina-alaska/dans-gdal-scripts"""
-        originalvrt = copy.deepcopy(self)
 
         #Handle bands first
         if bandList:
@@ -328,6 +407,18 @@ class VRTWarpedDataset(VRTBase):
     def __init__(self, vrt):
         super().__init__(vrt)
 
+    @property
+    def filename(self):
+        return self.data['VRTDataset']['GDALWarpOptions']['SourceDataset']['$']
+
+    @property
+    def warp_options(self):
+        return self.data['VRTDataset']['GDALWarpOptions']
+
+    @warp_options.setter
+    def warp_options(self, value):
+        self.data['VRTDataset']['GDALWarpOptions'].update(value)
+
     def add_band(self):
         bands = self.bands
         template_band = copy.deepcopy(self.get_band(1))
@@ -345,51 +436,117 @@ class VRTWarpedDataset(VRTBase):
         """Generate band(s) with same band profile as Band1 and ambiguous color interp"""
         [self.add_band() for _ in range(bands)]
 
-class GeoTransform(object):
+    def warp(self, dstSRS=None):
+        gdalwarp_opts = WarpOpts(self.warp_options)
+        if dstSRS:
+            extent = self.extent
+            out_wkt = wkt(dstSRS)
+            in_srs = Proj(init=f'epsg:{self.epsg}')
+            out_srs = Proj(init=f'epsg:{dstSRS}')
+            print(self.epsg, dstSRS)
 
-    @staticmethod
-    def from_element(gt_element):
-        return [float(x) for x in gt_element.split(',')]
+            # Calculate new resolution (see https://www.gdal.org/gdal__alg_8h.html#a816819e7495bfce06dbd110f7c57af65)
+            # Resolution is computed with the intent that the length of the distance from the top left corner of the output
+            # imagery to the bottom right corner would represent the same number of pixels as in the source
 
-    def __init__(self, gt_element):
-        self.gt = self.from_element(gt_element)
+            source_pixels_diag = math.sqrt(self.xsize ** 2 + self.ysize ** 2)
+            proj_tl = transform(in_srs, out_srs, extent[0], extent[3])
+            proj_br = transform(in_srs, out_srs, extent[1], extent[2])
+            projwidth = (proj_br[0] - proj_tl[0])
+            projheight = (proj_tl[1] - proj_br[1])
+            projdiag = math.sqrt(projwidth ** 2 + projheight ** 2)
+            res = projdiag / source_pixels_diag
+
+            # Calculate new cols and rows based on res
+            cols = round(projwidth / res)
+            rows = round(projheight / res)
+
+            self.tlx = proj_tl[0]
+            self.xres = res
+            self.tly = proj_tl[1]
+            self.yres = -res
+
+            #Update transformer
+            gdalwarp_opts.reproject_transformer = {"ReprojectionTransformer": {
+                                                            "SourceSRS": {
+                                                                "$": self.srs
+                                                                },
+                                                            "TargetSRS": {
+                                                                 "$": out_wkt
+                                                                }
+                                                            }
+                                                        }
+            gdalwarp_opts.dst_gt = self.gt.to_element()
+            gdalwarp_opts.dst_invgt = self.gt.to_element(inverse=True)
+            self.srs = out_wkt
+            self.update_gt()
+            self.xsize = cols
+            self.ysize = cols
+
+
+
+        self.warp_options = gdalwarp_opts.dumps()
+
+class WarpOpts():
+
+    def __init__(self, gdalwarp_opts):
+        self.opts = gdalwarp_opts
 
     @property
-    def tlx(self):
-        return self.gt[0]
+    def warp_memory_limit(self):
+        return self.opts['WarpMemoryLimit']['$']
 
-    @tlx.setter
-    def tlx(self, value):
-        self.gt[0] = value
-
-    @property
-    def tly(self):
-        return self.gt[3]
-
-    @tly.setter
-    def tly(self, value):
-        self.gt[3] = value
+    @warp_memory_limit.setter
+    def warp_memory_limit(self, value):
+        self.opts['WarpMemoryLimit']['$'] = value
 
     @property
-    def xres(self):
-        return self.gt[1]
+    def resample(self):
+        return self.opts['ResampleAlg']['$']
 
-    @xres.setter
-    def xres(self, value):
-        self.gt[1] = value
+    @resample.setter
+    def resample(self, value):
+        self.opts['ResampleAlg']['$'] = value
 
     @property
-    def yres(self):
-        return abs(self.gt[5])
+    def reproject_transformer(self):
+        try:
+            return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['ReprojectTransformer']
+        except ValueError:
+            return None
 
-    @yres.setter
-    def yres(self, value):
-        self.gt[5] = value
+    @reproject_transformer.setter
+    def reproject_transformer(self, d):
+        self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer'].update({"ReprojectTransformer": d})
 
-    def to_element(self):
-        return ','.join([str(x) for x in self.gt])
+    @property
+    def src_gt(self):
+        return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['SrcGeoTransform']['$']
 
-# with open('../templates/translate.vrt') as vrtfile:
-#     vrt = VRTDataset(vrtfile.read())
-#     vrt.translate(scaleParams=[0,13175,0,255])
-#     vrt.to_file('test_8bit.tif')
+    @property
+    def dst_gt(self):
+        return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstGeoTransform']['$']
+
+    @dst_gt.setter
+    def dst_gt(self, value):
+        self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstGeoTransform']['$'] = value
+
+    @property
+    def dst_invgt(self):
+        return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstInvGeoTransform']['$']
+
+    @dst_invgt.setter
+    def dst_invgt(self, value):
+        self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstInvGeoTransform']['$'] = value
+
+    def dumps(self):
+        return self.opts
+
+
+
+# with open('templates/warped.vrt') as vrtfile:
+#     vrt_str = vrtfile.read()
+#     vrt = VRTWarpedDataset(vrt_str)
+#     vrt.warp(dstSRS=3857)
+#     vrt.to_xml()
+#     vrt.to_file('3857proj.tif')
