@@ -511,7 +511,7 @@ class WarpOpts():
     @property
     def reproject_transformer(self):
         try:
-            return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['ReprojectTransformer']
+            return self.proj_transformer['ReprojectTransformer']
         except ValueError:
             return None
 
@@ -520,12 +520,16 @@ class WarpOpts():
         self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer'].update({"ReprojectTransformer": d})
 
     @property
+    def proj_transformer(self):
+        return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']
+
+    @property
     def src_gt(self):
-        return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['SrcGeoTransform']['$']
+        return self.proj_transformer['SrcGeoTransform']['$']
 
     @property
     def dst_gt(self):
-        return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstGeoTransform']['$']
+        return self.proj_transformer['DstGeoTransform']['$']
 
     @dst_gt.setter
     def dst_gt(self, value):
@@ -533,7 +537,7 @@ class WarpOpts():
 
     @property
     def dst_invgt(self):
-        return self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstInvGeoTransform']['$']
+        return self.proj_transformer['DstInvGeoTransform']['$']
 
     @dst_invgt.setter
     def dst_invgt(self, value):
