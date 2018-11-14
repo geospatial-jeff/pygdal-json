@@ -1,0 +1,48 @@
+<VRTDataset rasterXSize="652" rasterYSize="622">
+  <SRS>GEOGCS["WGS 84",DATUM["WGS_1984",SPHEROID["WGS 84",6378137,298.257223563,AUTHORITY["EPSG","7030"]],AUTHORITY["EPSG","6326"]],PRIMEM["Greenwich",0],UNIT["degree",0.0174532925199433],AUTHORITY["EPSG","4326"]]</SRS>
+  <GeoTransform> -1.2033027767128185e+02,  3.2055500732212287e-04,  0.0000000000000000e+00,  3.6228156139236120e+01,  0.0000000000000000e+00, -3.2055500732212287e-04</GeoTransform>
+  <Metadata>
+    <MDI key="AREA_OR_POINT">Area</MDI>
+  </Metadata>
+  <VRTRasterBand dataType="Int16" band="1">
+    <NoDataValue>-9999</NoDataValue>
+    <ColorInterp>Gray</ColorInterp>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">LS8_test_image.tif</SourceFilename>
+      <SourceBand>1</SourceBand>
+      <SourceProperties RasterXSize="652" RasterYSize="622" DataType="Int16" BlockXSize="652" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="652" ySize="622" />
+      <DstRect xOff="0" yOff="0" xSize="652" ySize="622" />
+    </SimpleSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="2">
+    <NoDataValue>-9999</NoDataValue>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">LS8_test_image.tif</SourceFilename>
+      <SourceBand>2</SourceBand>
+      <SourceProperties RasterXSize="652" RasterYSize="622" DataType="Int16" BlockXSize="652" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="652" ySize="622" />
+      <DstRect xOff="0" yOff="0" xSize="652" ySize="622" />
+    </SimpleSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="3">
+    <NoDataValue>-9999</NoDataValue>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">LS8_test_image.tif</SourceFilename>
+      <SourceBand>3</SourceBand>
+      <SourceProperties RasterXSize="652" RasterYSize="622" DataType="Int16" BlockXSize="652" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="652" ySize="622" />
+      <DstRect xOff="0" yOff="0" xSize="652" ySize="622" />
+    </SimpleSource>
+  </VRTRasterBand>
+  <VRTRasterBand dataType="Int16" band="4">
+    <NoDataValue>-9999</NoDataValue>
+    <SimpleSource>
+      <SourceFilename relativeToVRT="1">LS8_test_image.tif</SourceFilename>
+      <SourceBand>4</SourceBand>
+      <SourceProperties RasterXSize="652" RasterYSize="622" DataType="Int16" BlockXSize="652" BlockYSize="1" />
+      <SrcRect xOff="0" yOff="0" xSize="652" ySize="622" />
+      <DstRect xOff="0" yOff="0" xSize="652" ySize="622" />
+    </SimpleSource>
+  </VRTRasterBand>
+</VRTDataset>
