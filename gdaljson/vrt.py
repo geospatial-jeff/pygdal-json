@@ -4,14 +4,23 @@ import xml.etree.ElementTree as ET
 import xml.dom.minidom as md
 import copy
 import math
+import functools
+import geojson
 from pyproj import Proj, transform
-from shapely.ops import transform as geom_transform
+from shapely.ops import transform as transform_geom
 from shapely.geometry import shape
 
 from gdaljson.projection import wkt
 from gdaljson.transformations import loads
 
 from osgeo import gdal
+
+
+maxval = {'Byte': 2**8,
+          'UInt16': 2**16,
+          'Int16': int((2**16) / 2),
+          'UInt32': 2**32,
+          'Int32': int(2**32 / 2)}
 
 class GeoTransform(object):
 
@@ -58,6 +67,12 @@ class GeoTransform(object):
     @yres.setter
     def yres(self, value):
         self.gt[5] = value
+
+    def load(self, gt):
+        self.tlx = gt[0]
+        self.xres = gt[1]
+        self.tly = gt[3]
+        self.yres = gt[5]
 
     def to_element(self, inverse=False):
         if inverse:
@@ -412,6 +427,15 @@ class VRTWarpedDataset(VRTBase):
         return self.data['VRTDataset']['GDALWarpOptions']['SourceDataset']['$']
 
     @property
+    def blocksize(self):
+        return [self.data['VRTDataset']['BlockXSize']['$'], self.data['VRTDataset']['BlockXSize']['$']]
+
+    @blocksize.setter
+    def blocksize(self, value):
+        self.data['VRTDataset']['BlockXSize']['$'] = value[0]
+        self.data['VRTDataset']['BlockYSize']['$'] = value[1]
+
+    @property
     def warp_options(self):
         return self.data['VRTDataset']['GDALWarpOptions']
 
@@ -419,31 +443,42 @@ class VRTWarpedDataset(VRTBase):
     def warp_options(self, value):
         self.data['VRTDataset']['GDALWarpOptions'].update(value)
 
-    def add_band(self):
+    def add_band(self, alpha=False):
         bands = self.bands
         template_band = copy.deepcopy(self.get_band(1))
         template_band['@band'] = bands+1
-        if 'ColorInterp' in template_band.keys():
-            del(template_band['ColorInterp'])
+        if alpha:
+            template_band['ColorInterp'].update({'$': 'Alpha'})
+        else:
+            if 'ColorInterp' in template_band.keys():
+                del(template_band['ColorInterp'])
         self.data['VRTDataset']['VRTRasterBand'].append(template_band)
 
         #Also update band mapping
-        template_mapping = copy.deepcopy(self.data['VRTDataset']['GDALWarpOptions']['BandList']['BandMapping'][0])
-        template_mapping['@src'] = template_mapping['@dst'] = bands+1
-        self.data['VRTDataset']['GDALWarpOptions']['BandList']['BandMapping'].append(template_mapping)
+        if not alpha:
+            template_mapping = copy.deepcopy(self.data['VRTDataset']['GDALWarpOptions']['BandList']['BandMapping'][0])
+            template_mapping['@src'] = template_mapping['@dst'] = bands+1
+            self.data['VRTDataset']['GDALWarpOptions']['BandList']['BandMapping'].append(template_mapping)
 
     def add_bands(self, bands):
         """Generate band(s) with same band profile as Band1 and ambiguous color interp"""
         [self.add_band() for _ in range(bands)]
 
-    def warp(self, dstSRS=None):
+    def filter_band_properties(self, allowed):
+        for band in self.data['VRTDataset']['VRTRasterBand']:
+            for (k,v) in dict(band).items():
+                if k not in allowed:
+                    del(band[k])
+
+    def warp(self, dstSRS=None, clipper=None, cropToCutline=False, height=None, width=None, xRes=None, yRes=None, dstAlpha=None, resample="NearestNeighbour"):
         gdalwarp_opts = WarpOpts(self.warp_options)
+        gdalwarp_opts.resample = resample
+
         if dstSRS:
             extent = self.extent
             out_wkt = wkt(dstSRS)
             in_srs = Proj(init=f'epsg:{self.epsg}')
             out_srs = Proj(init=f'epsg:{dstSRS}')
-            print(self.epsg, dstSRS)
 
             # Calculate new resolution (see https://www.gdal.org/gdal__alg_8h.html#a816819e7495bfce06dbd110f7c57af65)
             # Resolution is computed with the intent that the length of the distance from the top left corner of the output
@@ -461,10 +496,8 @@ class VRTWarpedDataset(VRTBase):
             cols = round(projwidth / res)
             rows = round(projheight / res)
 
-            self.tlx = proj_tl[0]
-            self.xres = res
-            self.tly = proj_tl[1]
-            self.yres = -res
+            proj_gt = [proj_tl[0], res, 0, proj_tl[1], 0, -res]
+            self.gt.load(proj_gt)
 
             #Update transformer
             gdalwarp_opts.reproject_transformer = {"ReprojectionTransformer": {
@@ -479,18 +512,90 @@ class VRTWarpedDataset(VRTBase):
             gdalwarp_opts.dst_gt = self.gt.to_element()
             gdalwarp_opts.dst_invgt = self.gt.to_element(inverse=True)
             self.srs = out_wkt
-            self.update_gt()
+            # self.update_gt()
             self.xsize = cols
-            self.ysize = cols
+            self.ysize = rows
 
+        if clipper:
+            if hasattr(clipper, '__geo_interface__'):
+                geom = shape(clipper)
+            elif type(clipper) is str and clipper.endswith('.geojson'):
+                geom = shape(geojson.load(open(clipper))['geometry'])
+            elif type(clipper) is dict:
+                geom = shape(geojson.load(json.dumps(clipper)))
+            else:
+                raise ValueError("Invalid clipper type")
 
+            gdalwarp_opts.cutline = transform_geom(self.coords_to_pix, geom).to_wkt()
 
+            if cropToCutline:
+                if dstSRS:
+                    project = functools.partial(transform, in_srs, out_srs)
+                    geom = transform_geom(project, geom)
+                bounds = geom.bounds
+                xsize, ysize = [int((bounds[2] - bounds[0]) / self.xres), int((bounds[3] - bounds[1]) / self.yres)]
+                clip_gt = [bounds[0], (bounds[2] - bounds[0]) / xsize, 0, bounds[3], 0, -((bounds[3] - bounds[1]) / ysize)]
+                self.xsize = xsize
+                self.ysize = ysize
+
+                if min(self.blocksize) > min(xsize, ysize):
+                    self.blocksize = [xsize, ysize]
+
+                self.gt.load(clip_gt)
+            gdalwarp_opts.dst_gt = self.gt.to_element()
+            gdalwarp_opts.dst_invgt = self.gt.to_element(inverse=True)
+
+        if height or width:
+            if (height or width) and (xRes or yRes):
+                raise ValueError("height/width and xRes/yRes are mutually exclusive")
+            if height and width:
+                _height = height
+                _width = width
+            else:
+                if height:
+                    ratio = self.ysize / height
+                    _width = int(round(self.xsize / ratio))
+                    _height = height
+                elif width:
+                    ratio = self.xsize / width
+                    _height = int(self.ysize / ratio)
+                    _width = width
+
+            self.xres = (self.xres * self.xsize) / _width
+            self.yres = (self.yres * self.ysize) / _height
+            self.xsize = _width
+            self.ysize = _height
+
+        elif xRes and yRes:
+            _width = int(round((self.xres * self.xsize) / xRes))
+            _height = int(round((self.yres * self.ysize) / yRes))
+
+            self.xres = xRes
+            self.yres = -yRes
+            self.xsize = _width
+            self.ysize = _height
+
+        if dstAlpha:
+            self.add_band(alpha=True)
+            gdalwarp_opts.alphaband = self.bands
+            gdalwarp_opts.add_option({'@name': 'DST_ALPHA_MAX', '$': maxval[self.bitdepth]-1})
+            gdalwarp_opts.opts['Option'][0]['$'] = 0
+            gdalwarp_opts.reset_nodata()
+            self.filter_band_properties(['ColorInterp', '@dataType', '@band', '@subClass', 'VRTRasterBand'])
+
+        self.update_gt()
         self.warp_options = gdalwarp_opts.dumps()
+
+
+    def coords_to_pix(self, x, y, z=None):
+        gt = GeoTransform(self.data['VRTDataset']['GeoTransform']['$'])
+        return ((x - gt.tlx) / gt.xres, (gt.tly - y) / gt.yres)
 
 class WarpOpts():
 
     def __init__(self, gdalwarp_opts):
         self.opts = gdalwarp_opts
+        self.opts['Option'] = [self.opts['Option']]
 
     @property
     def warp_memory_limit(self):
@@ -543,6 +648,38 @@ class WarpOpts():
     def dst_invgt(self, value):
         self.opts['Transformer']['ApproxTransformer']['BaseTransformer']['GenImgProjTransformer']['DstInvGeoTransform']['$'] = value
 
+    @property
+    def cutline(self):
+        return self.opts['Cutline']['$']
+
+    @cutline.setter
+    def cutline(self, value):
+        self.opts.update({'Cutline': {'$': value}})
+
+    @property
+    def alphaband(self):
+        return self.opts['DstAlphaBand']['$']
+
+    @alphaband.setter
+    def alphaband(self, value):
+        self.opts.update({'DstAlphaBand': {'$': value}})
+
+    @property
+    def resample(self):
+        return self.opts['ResampleAlg']['$']
+
+    @resample.setter
+    def resample(self, value):
+        self.opts['ResampleAlg']['$'] = value
+
+    def add_option(self, option):
+        self.opts['Option'].append(option)
+
+    def reset_nodata(self):
+        for band in self.opts['BandList']['BandMapping']:
+            del(band['DstNoDataReal'])
+            del(band['DstNoDataImag'])
+
     def dumps(self):
         return self.opts
 
@@ -551,6 +688,9 @@ class WarpOpts():
 # with open('templates/warped.vrt') as vrtfile:
 #     vrt_str = vrtfile.read()
 #     vrt = VRTWarpedDataset(vrt_str)
-#     vrt.warp(dstSRS=3857)
+#
+#     vrt.warp(dstAlpha=True, resample="Cubic")
+#
+#
 #     vrt.to_xml()
-#     vrt.to_file('3857proj.tif')
+#     vrt.to_file('clip_cutline_3857_alpha.tif')
