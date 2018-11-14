@@ -13,8 +13,6 @@ from shapely.geometry import shape
 from gdaljson.projection import wkt
 from gdaljson.transformations import loads
 
-from osgeo import gdal
-
 
 maxval = {'Byte': 2**8,
           'UInt16': 2**16,
@@ -171,7 +169,7 @@ class VRTBase(object):
 
     @property
     def shape(self):
-        return [self.xsize, self.ysize, self.bands]
+        return (self.xsize, self.ysize, self.bands)
 
     @property
     def bitdepth(self):
@@ -223,32 +221,6 @@ class VRTBase(object):
         xml = md.parseString(vrtxml)
         print(xml.toprettyxml())
 
-    def to_gdal(self):
-        vrtxml = ET.tostring(bf.etree(self.data)[0])
-        ds = gdal.Open(vrtxml)
-        return ds
-
-    def to_file(self, outfile, profile=None):
-        if profile:
-            p = profile(self)
-            pname = type(p).__name__.upper()
-
-            if 'COG' in pname:
-                _outfile = '/vsimem/testing.tif'
-            else:
-                _outfile = outfile
-            out_ds = gdal.Translate(_outfile, self.to_gdal(), creationOptions=p.creation_options())
-
-            if hasattr(p, "overview_options"):
-                for k,v in p.overview_options().items():
-                    gdal.SetConfigOption(k, v)
-            out_ds.BuildOverviews(p.ovr_resample, p.overviews())
-
-            if 'COG' in pname:
-                gdal.Translate(outfile, out_ds, creationOptions=p.creation_options()+['COPY_SRC_OVERVIEWS=YES'])
-            out_ds = None
-        else:
-            gdal.Translate(outfile, self.to_gdal())
 
 class VRTDataset(VRTBase):
 
@@ -261,6 +233,10 @@ class VRTDataset(VRTBase):
     @property
     def filename(self):
         return self.data['VRTDataset']['VRTRasterBand'][0][self.source]['SourceFilename']['$']
+
+    @filename.setter
+    def filename(self, value):
+        [self.data['VRTDataset']['VRTRasterBand'][i][self.source]['SourceFilename'].update({'$': value}) for i in range(self.bands)]
 
     @property
     def scale_ratio(self):
@@ -326,6 +302,10 @@ class VRTDataset(VRTBase):
             self.data['VRTDataset']['VRTRasterBand'][band][self.source]['DstRect']['@yOff'] = offset[1]
             self.data['VRTDataset']['VRTRasterBand'][band][self.source]['DstRect']['@xSize'] = offset[2]
             self.data['VRTDataset']['VRTRasterBand'][band][self.source]['DstRect']['@ySize'] = offset[3]
+
+    @property
+    def bandorder(self):
+        return [self.data['VRTDataset']['VRTRasterBand'][i][self.source]['SourceBand']['$'] for i in range(self.bands)]
 
     def change_source(self, new_source):
         for band in range(self.bands):
@@ -512,7 +492,6 @@ class VRTWarpedDataset(VRTBase):
             gdalwarp_opts.dst_gt = self.gt.to_element()
             gdalwarp_opts.dst_invgt = self.gt.to_element(inverse=True)
             self.srs = out_wkt
-            # self.update_gt()
             self.xsize = cols
             self.ysize = rows
 
