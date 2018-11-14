@@ -44,7 +44,7 @@ class VRTTestCases(unittest.TestCase):
     def translate(self, **kwargs):
         with self.open_vrt(self.translatevrt) as vrt:
             vrt.translate(**kwargs)
-            gdaljson_warp = vrt
+            gdaljson_translate = vrt
 
         if 'scaleParams' in list(kwargs):
             kwargs['scaleParams'] = [kwargs['scaleParams']]
@@ -52,23 +52,46 @@ class VRTTestCases(unittest.TestCase):
         fname = '/vsimem/{}.vrt'.format(str(uuid.uuid4().hex))
         gdal.Translate(fname, gdal.Open(self.translatevrt), **kwargs)
         xml_string = self.read_vsimem(fname)
-        native_warp = VRTDataset(xml_string)
+        native_translate = VRTDataset(xml_string)
+        return [native_translate, gdaljson_translate]
 
+    def warp(self, **kwargs):
+        with self.open_vrt(self.warpedvrt) as vrt:
+            vrt.warp(**kwargs)
+            gdaljson_warp = vrt
 
+        if 'dstSRS' in list(kwargs):
+            kwargs['dstSRS'] = 'EPSG:{}'.format(kwargs['dstSRS'])
+
+        fname = '/vsimem/{}.vrt'.format(str(uuid.uuid4().hex))
+        gdal.Warp(fname, gdal.Open(self.translatevrt), **kwargs)
+        xml_string = self.read_vsimem(fname)
+        native_warp = VRTWarpedDataset(xml_string)
         return [native_warp, gdaljson_warp]
 
+
     def check_equivalency(self, vrt1, vrt2):
-        properties = ['xsize', 'ysize', 'tlx', 'tly', 'xres', 'yres', 'srs', 'epsg', 'bitdepth', 'nodata', 'extent']
-        for item in properties:
-            try:
-                self.assertAlmostEqual(getattr(vrt1, item), getattr(vrt2, item), 18)
-            except AssertionError:
-                print("Invalid property: {}".format(item))
-                raise
+        properties = ['xsize', 'ysize', 'tlx', 'tly', 'xres', 'yres', 'epsg', 'bitdepth', 'nodata', 'extent']
         if type(vrt1) == type(vrt2) == VRTDataset:
             self.assertListEqual(vrt1.src_rect, vrt2.src_rect)
             self.assertListEqual(vrt1.dst_rect, vrt1.dst_rect)
             self.assertEqual(vrt1.source, vrt2.source)
+            tolerance = 18
+        elif type(vrt1) == type(vrt2) == VRTWarpedDataset:
+            tolerance = 8
+
+        for item in properties:
+            try:
+                val1 = getattr(vrt1, item)
+                val2 = getattr(vrt2, item)
+                if type(val1) == list:
+                    for (x,y) in zip(val1, val2):
+                        self.assertAlmostEqual(x,y,tolerance)
+                else:
+                    self.assertAlmostEqual(val1, val2, tolerance)
+            except AssertionError:
+                print("Invalid property: {}".format(item))
+                raise
 
     def test_translate_bands(self):
         #Dropping bands with translate
@@ -127,4 +150,11 @@ class VRTTestCases(unittest.TestCase):
 
     def test_translate_nodata(self):
         native, gdaljson = self.translate(noData=100)
+        self.check_equivalency(native, gdaljson)
+
+    def test_warp_srs(self):
+        native, gdaljson = self.warp(dstSRS=3857)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(dstSRS=32611)
         self.check_equivalency(native, gdaljson)

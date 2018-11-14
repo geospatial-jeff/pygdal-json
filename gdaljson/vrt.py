@@ -476,17 +476,26 @@ class VRTWarpedDataset(VRTBase):
 
             source_pixels_diag = math.sqrt(self.xsize ** 2 + self.ysize ** 2)
             proj_tl = transform(in_srs, out_srs, extent[0], extent[3])
+            proj_bl = transform(in_srs, out_srs, extent[0], extent[2])
             proj_br = transform(in_srs, out_srs, extent[1], extent[2])
+            proj_tr = transform(in_srs, out_srs, extent[1], extent[3])
+
+            proj_tl_corner = [min(proj_tl[0], proj_bl[0]),
+                              max(proj_tl[1], proj_tr[1])]
+            proj_br_corner = [max(proj_tr[0], proj_br[0]),
+                              min(proj_bl[1], proj_br[1])]
+
             projwidth = (proj_br[0] - proj_tl[0])
             projheight = (proj_tl[1] - proj_br[1])
             projdiag = math.sqrt(projwidth ** 2 + projheight ** 2)
             res = projdiag / source_pixels_diag
 
             # Calculate new cols and rows based on res
-            cols = round(projwidth / res)
-            rows = round(projheight / res)
+            cols = round((proj_br_corner[0] - proj_tl_corner[0]) / res)
+            rows = round((proj_tl_corner[1] - proj_br_corner[1]) / res)
 
-            proj_gt = [proj_tl[0], res, 0, proj_tl[1], 0, -res]
+
+            proj_gt = [proj_tl_corner[0], res, 0, proj_tl_corner[1], 0, -res]
             self.gt.load(proj_gt)
 
             #Update transformer
