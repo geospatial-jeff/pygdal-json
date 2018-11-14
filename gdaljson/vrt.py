@@ -198,11 +198,18 @@ class VRTBase(object):
                 self.tly
                 ]
 
+    @property
+    def bandorder(self):
+        return [self.data['VRTDataset']['VRTRasterBand'][i]['@band'] for i in range(self.bands)]
+
     def drop_band(self, band):
         self.data['VRTDataset']['VRTRasterBand'].pop(band - 1)
+        #Update all band numbers
+        [self.data['VRTDataset']['VRTRasterBand'][i].update({'@band': i+1}) for i in range(band-1, self.bands)]
 
     def drop_bands(self, bands):
         [self.data['VRTDataset']['VRTRasterBand'].pop(i - 1) for i in sorted(bands, reverse=True)]
+        [self.data['VRTDataset']['VRTRasterBand'][i].update({'@band': i+1}) for i in range(self.bands)]
 
     def get_band(self, band):
         return self.data['VRTDataset']['VRTRasterBand'][band - 1]
@@ -303,10 +310,6 @@ class VRTDataset(VRTBase):
             self.data['VRTDataset']['VRTRasterBand'][band][self.source]['DstRect']['@xSize'] = offset[2]
             self.data['VRTDataset']['VRTRasterBand'][band][self.source]['DstRect']['@ySize'] = offset[3]
 
-    @property
-    def bandorder(self):
-        return [self.data['VRTDataset']['VRTRasterBand'][i][self.source]['SourceBand']['$'] for i in range(self.bands)]
-
     def change_source(self, new_source):
         for band in range(self.bands):
             self.data['VRTDataset']['VRTRasterBand'][band].update({new_source: self.data['VRTDataset']['VRTRasterBand'][band][self.source]})
@@ -327,10 +330,12 @@ class VRTDataset(VRTBase):
 
     def add_bands(self, bands):
         """Generate band(s) with same band profile as Band1 and ambiguous color interp"""
-        [self.add_band() for _ in range(bands)]
+        # [self.add_band() for _ in range(bands)]
+        for _ in range(bands):
+            self.add_band()
 
     def translate(self, bandList=None, srcWin=None, projWin=None, height=None, width=None, xRes=None, yRes=None,
-                    nodata=None, resampleAlg=None, scaleParams=None):
+                    noData=None, resampleAlg=None, scaleParams=None):
 
         #Handle bands first
         if bandList:
@@ -342,8 +347,8 @@ class VRTDataset(VRTBase):
             if projWin:
                 xoff, yoff = [int((projWin[0] - self.gt.tlx) / self.gt.xres),
                               int((self.gt.tly - projWin[1]) / self.gt.yres)]
-                xsize, ysize = [int((projWin[2] - projWin[0]) / self.gt.xres),
-                                int((projWin[1] - projWin[3]) / self.gt.yres)]
+                xsize, ysize = [int(round((projWin[2] - projWin[0]) / self.gt.xres)),
+                                int(round((projWin[1] - projWin[3]) / self.gt.yres))]
                 srcWin = [xoff, yoff, xsize, ysize]
             self.src_rect = srcWin
             self.dst_rect = [0, 0, srcWin[2], srcWin[3]]
@@ -368,8 +373,9 @@ class VRTDataset(VRTBase):
                     _height = int(round(self.src_rect[3] / ratio))
                     _width = width
                 self.dst_rect = [0,0,_width,_height]
-            self.xres = self.xres * self.src_rect[2]
-            self.yres = -(self.yres * self.src_rect[3])
+
+            self.xres = self.xres * self.src_rect[2] / _width
+            self.yres = -(self.yres * self.src_rect[3]) / _height
 
         elif xRes and yRes:
             _width = int(round((self.xres * self.src_rect[2]) / xRes))
@@ -387,8 +393,8 @@ class VRTDataset(VRTBase):
             self.scale_offset = 0
             self.change_source("ComplexSource")
 
-        if nodata:
-            self.nodata = nodata
+        if noData:
+            self.nodata = noData
         if resampleAlg:
             self.resampling = resampleAlg
 
@@ -405,6 +411,10 @@ class VRTWarpedDataset(VRTBase):
     @property
     def filename(self):
         return self.data['VRTDataset']['GDALWarpOptions']['SourceDataset']['$']
+
+    @filename.setter
+    def filename(self, value):
+        self.data['VRTDataset']['GDALWarpOptions']['SourceDataset']['$'] = value
 
     @property
     def blocksize(self):
