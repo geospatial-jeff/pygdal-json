@@ -538,9 +538,6 @@ class VRTWarpedDataset(VRTBase):
                 self.xsize = xsize
                 self.ysize = ysize
 
-                if min(self.blocksize) > min(xsize, ysize):
-                    self.blocksize = [xsize, ysize]
-
                 self.gt.load(clip_gt)
             self.warp_options.dst_gt = self.gt.to_element()
             self.warp_options.dst_invgt = self.gt.to_element(inverse=True)
@@ -588,6 +585,10 @@ class VRTWarpedDataset(VRTBase):
             self.warp_options.opts['Option'][0]['$'] = 0
             self.warp_options.reset_nodata()
             self.filter_band_properties(['ColorInterp', '@dataType', '@band', '@subClass', 'VRTRasterBand'])
+
+        if min(self.blocksize) > min(self.xsize, self.ysize):
+            block = min(self.xsize, self.ysize)
+            self.blocksize = [block, block]
 
         self.update_gt()
         self.warp_options = self.warp_options.dumps()
@@ -688,15 +689,3 @@ class WarpOpts():
 
     def dumps(self):
         return self.opts
-
-
-
-# with open('templates/warped.vrt') as vrtfile:
-#     vrt_str = vrtfile.read()
-#     vrt = VRTWarpedDataset(vrt_str)
-#
-#     vrt.warp(dstAlpha=True, resample="Cubic")
-#
-#
-#     vrt.to_xml()
-#     vrt.to_file('clip_cutline_3857_alpha.tif')

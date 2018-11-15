@@ -83,6 +83,7 @@ class VRTTestCases(unittest.TestCase):
             self.assertEqual(vrt1.source, vrt2.source)
             tolerance = 18
         elif type(vrt1) == type(vrt2) == VRTWarpedDataset:
+            self.assertListEqual(vrt1.blocksize, vrt2.blocksize)
             tolerance = 8
 
         for item in properties:
