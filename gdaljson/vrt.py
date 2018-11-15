@@ -223,10 +223,11 @@ class VRTBase(object):
     def pprint(self):
         print(json.dumps(self.data, indent=1))
 
-    def to_xml(self):
-        vrtxml = ET.tostring(bf.etree(self.data)[0])
-        xml = md.parseString(vrtxml)
-        print(xml.toprettyxml())
+    def to_xml(self, outfile):
+        test = bf.etree(self.data)[0]
+        tree = ET.ElementTree(test)
+        tree.write(outfile)
+
 
 
 class VRTDataset(VRTBase):
