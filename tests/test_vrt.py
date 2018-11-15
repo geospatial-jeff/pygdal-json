@@ -216,3 +216,16 @@ class VRTTestCases(unittest.TestCase):
             vrt.translate(bandList=[3,2])
             out_ds = utils.to_gdal(vrt)
             self.assertEqual(type(out_ds), gdal.Dataset)
+
+    def test_to_file(self):
+        with self.open_vrt(self.warpedvrt) as vrt:
+            vrt.warp(dstSRS=3857)
+            utils.to_file(vrt, '/vsimem/save_warp.tif')
+            ds = gdal.Open('/vsimem/save_warp.tif')
+            self.assertEqual(type(ds), gdal.Dataset)
+
+        with self.open_vrt(self.translatevrt) as vrt:
+            vrt.translate(bandList=[3,2])
+            utils.to_file(vrt, '/vsimem/save_translate.tif')
+            ds = gdal.Open('/vsimem/save_translate.tif')
+            self.assertEqual(type(ds), gdal.Dataset)
