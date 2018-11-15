@@ -8,9 +8,8 @@ from gdaljson import VRTWarpedDataset
 @click.option("--dstsrs", type=int, help="Output EPSG")
 @click.option(
     "--cutline",
-    type=click.Path(exists=True)
-    help="Geojson file containing geojson feature in same SRS as raster"
-              ),
+    type=click.Path(exists=True),
+    help="Geojson file containing geojson feature in same SRS as raster")
 @click.option(
     "--croptocutline",
     help="Crop the output raster's extent to that of the cutline",
@@ -46,6 +45,7 @@ def cli(
         infile,
         outfile,
         dstsrs,
+        cutline,
         croptocutline,
         height,
         width,

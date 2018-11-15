@@ -28,8 +28,8 @@ class VRTTestCases(unittest.TestCase):
         return gdal.VSIFReadL(1, vsileng, vsifile)
 
     def setUp(self):
-        self.warpedvrt = "templates/warped.vrt"
-        self.translatevrt = "templates/translate.vrt"
+        self.warpedvrt = os.path.join(os.path.split(__file__)[0], "templates/warped.vrt")
+        self.translatevrt = os.path.join(os.path.split(__file__)[0], "templates/translate.vrt")
 
     @contextmanager
     def open_vrt(self, fpath):
@@ -187,7 +187,7 @@ class VRTTestCases(unittest.TestCase):
         self.check_equivalency(native, gdaljson)
 
     def test_warp_clipper(self):
-        clipper = "templates/clipper.geojson"
+        clipper = os.path.join(os.path.split(__file__)[0], "templates/clipper.geojson")
 
         native, gdaljson = self.warp(clipper=clipper)
         self.check_equivalency(native, gdaljson)
