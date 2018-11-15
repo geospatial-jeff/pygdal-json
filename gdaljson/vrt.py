@@ -668,7 +668,7 @@ class VRTWarpedDataset(VRTBase):
                 clip_file = open(clipper)
                 geom = shape(geojson.load(clip_file)["geometry"])
             elif type(clipper) is dict:
-                geom = shape(geojson.load(json.dumps(clipper)))
+                geom = shape(geojson.loads(json.dumps(clipper)))
             else:
                 raise ValueError("Invalid clipper type")
 
