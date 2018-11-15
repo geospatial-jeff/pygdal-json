@@ -205,3 +205,14 @@ class VRTTestCases(unittest.TestCase):
 
             native, gdaljson = self.warp(xRes=30, yRes=30, dstSRS=3857)
             self.check_equivalency(native, gdaljson)
+
+    def test_to_gdal(self):
+        with self.open_vrt(self.warpedvrt) as vrt:
+            vrt.warp(dstSRS=3857)
+            out_ds = utils.to_gdal(vrt)
+            self.assertEqual(type(out_ds), gdal.Dataset)
+
+        with self.open_vrt(self.translatevrt) as vrt:
+            vrt.translate(bandList=[3,2])
+            out_ds = utils.to_gdal(vrt)
+            self.assertEqual(type(out_ds), gdal.Dataset)
