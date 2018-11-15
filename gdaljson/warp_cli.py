@@ -67,7 +67,3 @@ def cli(
         resample=resample,
     )
     vrt.to_xml(outfile)
-
-
-if __name__ == "__main__":
-    cli()

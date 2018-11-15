@@ -43,7 +43,3 @@ def cli(
         scaleParams=scale,
     )
     vrt.to_xml(outfile)
-
-
-if __name__ == "__main__":
-    cli()
