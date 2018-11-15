@@ -15,7 +15,7 @@ from gdaljson import VRTDataset
 @click.option("--resample", type=str)
 @click.option("--scale", type=list)
 
-def cli(infile, outfile, bandlist, srcwin, projwin, height, width, xres, yres, nodata, resample, scale)
+def cli(infile, outfile, bandlist, srcwin, projwin, height, width, xres, yres, nodata, resample, scale):
     vrt = VRTDataset(infile.read())
     vrt.translate(bandList=bandlist, srcWin=srcwin, projWin=projwin, height=height, width=width, xRes=xres, yRes=yres,
                   noData=nodata, resampleAlg=resample, scaleParams=scale)
