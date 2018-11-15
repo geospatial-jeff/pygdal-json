@@ -10,8 +10,10 @@ setup(name='gdaljson',
       author='Jeff Albrecht',
       author_email='geospatialjeff@gmail.com',
       packages=find_packages(exclude=["tests"]),
-      install_requires = requirements,
+      install_requires=requirements,
       entry_points={
-            'console_scripts': ['warp=gdaljson.warp_cli:cli']
-      }
+            'console_scripts': ['warp=gdaljson.warp_cli:cli',
+                                'translate=gdaljson.translate_cli:cli'
+                                ]
+            }
       )
