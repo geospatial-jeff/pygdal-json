@@ -198,3 +198,10 @@ class VRTTestCases(unittest.TestCase):
         native, gdaljson = self.warp(width=500, height=480)
         self.check_equivalency(native, gdaljson)
 
+    def test_warp_resample(self):
+        with self.open_vrt(self.warpedvrt) as vrt:
+            native, gdaljson = self.warp(xRes=vrt.xres/2, yRes=vrt.yres/2)
+            self.check_equivalency(native, gdaljson)
+
+            native, gdaljson = self.warp(xRes=30, yRes=30, dstSRS=3857)
+            self.check_equivalency(native, gdaljson)
