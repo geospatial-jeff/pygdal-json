@@ -408,6 +408,8 @@ class VRTWarpedDataset(VRTBase):
     def __init__(self, vrt):
         super().__init__(vrt)
 
+        self.__warp_options = WarpOpts(self.data['VRTDataset']['GDALWarpOptions'])
+
     @property
     def filename(self):
         return self.data['VRTDataset']['GDALWarpOptions']['SourceDataset']['$']
@@ -427,7 +429,7 @@ class VRTWarpedDataset(VRTBase):
 
     @property
     def warp_options(self):
-        return self.data['VRTDataset']['GDALWarpOptions']
+        return self.__warp_options
 
     @warp_options.setter
     def warp_options(self, value):
@@ -461,8 +463,7 @@ class VRTWarpedDataset(VRTBase):
                     del(band[k])
 
     def warp(self, dstSRS=None, clipper=None, cropToCutline=False, height=None, width=None, xRes=None, yRes=None, dstAlpha=None, resample="NearestNeighbour"):
-        gdalwarp_opts = WarpOpts(self.warp_options)
-        gdalwarp_opts.resample = resample
+        self.warp_options.resample = resample
 
         if dstSRS:
             extent = self.extent
@@ -499,7 +500,7 @@ class VRTWarpedDataset(VRTBase):
             self.gt.load(proj_gt)
 
             #Update transformer
-            gdalwarp_opts.reproject_transformer = {"ReprojectionTransformer": {
+            self.warp_options.reproject_transformer = {"ReprojectionTransformer": {
                                                             "SourceSRS": {
                                                                 "$": self.srs
                                                                 },
@@ -508,8 +509,8 @@ class VRTWarpedDataset(VRTBase):
                                                                 }
                                                             }
                                                         }
-            gdalwarp_opts.dst_gt = self.gt.to_element()
-            gdalwarp_opts.dst_invgt = self.gt.to_element(inverse=True)
+            self.warp_options.dst_gt = self.gt.to_element()
+            self.warp_options.dst_invgt = self.gt.to_element(inverse=True)
             self.srs = out_wkt
             self.xsize = cols
             self.ysize = rows
@@ -518,20 +519,21 @@ class VRTWarpedDataset(VRTBase):
             if hasattr(clipper, '__geo_interface__'):
                 geom = shape(clipper)
             elif type(clipper) is str and clipper.endswith('.geojson'):
-                geom = shape(geojson.load(open(clipper))['geometry'])
+                clip_file = open(clipper)
+                geom = shape(geojson.load(clip_file)['geometry'])
             elif type(clipper) is dict:
                 geom = shape(geojson.load(json.dumps(clipper)))
             else:
                 raise ValueError("Invalid clipper type")
 
-            gdalwarp_opts.cutline = transform_geom(self.coords_to_pix, geom).to_wkt()
+            self.warp_options.cutline = transform_geom(self.coords_to_pix, geom).wkt
 
             if cropToCutline:
                 if dstSRS:
                     project = functools.partial(transform, in_srs, out_srs)
                     geom = transform_geom(project, geom)
                 bounds = geom.bounds
-                xsize, ysize = [int((bounds[2] - bounds[0]) / self.xres), int((bounds[3] - bounds[1]) / self.yres)]
+                xsize, ysize = [int(round((bounds[2] - bounds[0]) / self.xres)), int(round((bounds[3] - bounds[1]) / self.yres))]
                 clip_gt = [bounds[0], (bounds[2] - bounds[0]) / xsize, 0, bounds[3], 0, -((bounds[3] - bounds[1]) / ysize)]
                 self.xsize = xsize
                 self.ysize = ysize
@@ -540,8 +542,11 @@ class VRTWarpedDataset(VRTBase):
                     self.blocksize = [xsize, ysize]
 
                 self.gt.load(clip_gt)
-            gdalwarp_opts.dst_gt = self.gt.to_element()
-            gdalwarp_opts.dst_invgt = self.gt.to_element(inverse=True)
+            self.warp_options.dst_gt = self.gt.to_element()
+            self.warp_options.dst_invgt = self.gt.to_element(inverse=True)
+
+        if type(clipper) is str and clipper.endswith('.geojson'):
+            clip_file.close()
 
         if height or width:
             if (height or width) and (xRes or yRes):
@@ -549,18 +554,21 @@ class VRTWarpedDataset(VRTBase):
             if height and width:
                 _height = height
                 _width = width
+                _xres = (self.xres * self.xsize) / _width
+                _yres = (self.yres * self.ysize) / _height
             else:
-                if height:
-                    ratio = self.ysize / height
-                    _width = int(round(self.xsize / ratio))
-                    _height = height
-                elif width:
-                    ratio = self.xsize / width
-                    _height = int(self.ysize / ratio)
+                if width:
+                    _xres = (self.xres * self.xsize) / width
+                    _yres = -_xres
+                    _height = int(round((self.extent[2] - self.extent[3]) / _yres))
                     _width = width
-
-            self.xres = (self.xres * self.xsize) / _width
-            self.yres = (self.yres * self.ysize) / _height
+                elif height:
+                    _yres = (self.yres * self.ysize) / height
+                    _xres = abs(_yres)
+                    _width = int(round((self.extent[1] - self.extent[0]) / _xres))
+                    _height = height
+            self.xres = _xres
+            self.yres = _yres
             self.xsize = _width
             self.ysize = _height
 
@@ -575,14 +583,14 @@ class VRTWarpedDataset(VRTBase):
 
         if dstAlpha:
             self.add_band(alpha=True)
-            gdalwarp_opts.alphaband = self.bands
-            gdalwarp_opts.add_option({'@name': 'DST_ALPHA_MAX', '$': maxval[self.bitdepth]-1})
-            gdalwarp_opts.opts['Option'][0]['$'] = 0
-            gdalwarp_opts.reset_nodata()
+            self.warp_options.alphaband = self.bands
+            self.warp_options.add_option({'@name': 'DST_ALPHA_MAX', '$': maxval[self.bitdepth]-1})
+            self.warp_options.opts['Option'][0]['$'] = 0
+            self.warp_options.reset_nodata()
             self.filter_band_properties(['ColorInterp', '@dataType', '@band', '@subClass', 'VRTRasterBand'])
 
         self.update_gt()
-        self.warp_options = gdalwarp_opts.dumps()
+        self.warp_options = self.warp_options.dumps()
 
 
     def coords_to_pix(self, x, y, z=None):

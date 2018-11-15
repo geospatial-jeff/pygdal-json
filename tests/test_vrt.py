@@ -6,6 +6,8 @@ import uuid
 from osgeo import gdal
 
 from gdaljson import VRTDataset, VRTWarpedDataset
+from gdaljson.vrt import GeoTransform
+
 import gdaljson_utils as utils
 
 gdal.UseExceptions()
@@ -62,6 +64,9 @@ class VRTTestCases(unittest.TestCase):
 
         if 'dstSRS' in list(kwargs):
             kwargs['dstSRS'] = 'EPSG:{}'.format(kwargs['dstSRS'])
+        if 'clipper' in list(kwargs):
+            kwargs['cutlineDSName'] = kwargs['clipper']
+            del(kwargs['clipper'])
 
         fname = '/vsimem/{}.vrt'.format(str(uuid.uuid4().hex))
         gdal.Warp(fname, gdal.Open(self.translatevrt), **kwargs)
@@ -158,3 +163,38 @@ class VRTTestCases(unittest.TestCase):
 
         native, gdaljson = self.warp(dstSRS=32611)
         self.check_equivalency(native, gdaljson)
+
+    def test_warp_clipper(self):
+        clipper = 'templates/clipper.geojson'
+
+        native, gdaljson = self.warp(clipper=clipper)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(clipper=clipper, cropToCutline=True)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(clipper=clipper, cropToCutline=True, dstAlpha=True)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(clipper=clipper, cropToCutline=True, height=250)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(clipper=clipper, cropToCutline=True, height=250, width=150)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(clipper=clipper, dstSRS=3857)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(clipper=clipper, dstSRS=3857, dstAlpha=True, height=100, width=100)
+        self.check_equivalency(native, gdaljson)
+
+    def test_warp_width_height(self):
+        native, gdaljson = self.warp(width=500)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(height=500)
+        self.check_equivalency(native, gdaljson)
+
+        native, gdaljson = self.warp(width=500, height=480)
+        self.check_equivalency(native, gdaljson)
+
