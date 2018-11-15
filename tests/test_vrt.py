@@ -6,7 +6,6 @@ import uuid
 from osgeo import gdal
 
 from gdaljson import VRTDataset, VRTWarpedDataset
-from gdaljson.vrt import GeoTransform
 
 import gdaljson_utils as utils
 
@@ -190,7 +189,7 @@ class VRTTestCases(unittest.TestCase):
         self.check_equivalency(native, gdaljson)
 
     def test_warp_width_height(self):
-        native, gdaljson = self.warp(width=500)
+        native, gdaljson = self.warp(width=300)
         self.check_equivalency(native, gdaljson)
 
         native, gdaljson = self.warp(height=500)

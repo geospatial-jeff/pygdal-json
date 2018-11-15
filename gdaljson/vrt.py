@@ -586,9 +586,9 @@ class VRTWarpedDataset(VRTBase):
             self.warp_options.reset_nodata()
             self.filter_band_properties(['ColorInterp', '@dataType', '@band', '@subClass', 'VRTRasterBand'])
 
-        if min(self.blocksize) > min(self.xsize, self.ysize):
-            block = min(self.xsize, self.ysize)
-            self.blocksize = [block, block]
+        if min(self.blocksize) > max(self.xsize, self.ysize):
+            # block = min(self.xsize, self.ysize)
+            self.blocksize = [self.xsize, self.xsize]
 
         self.update_gt()
         self.warp_options = self.warp_options.dumps()
