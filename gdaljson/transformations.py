@@ -10,6 +10,7 @@ def dumps(d, pretty=False):
         return md.parseString(vrtxml)
     return vrtxml
 
+
 def loads(s):
     """Load dict(json) from xml string"""
     return dict(bf.data(ET.fromstring(s)))
