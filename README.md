@@ -110,7 +110,7 @@ See `util.COG` for an example of a COG profile.
 util.to_file(gdaljson.VRTDatset, 'output_cog.tif', profile=util.COG)
 ```
 
-####Test Cases
+#### Test Cases
 ```commandline
 python -m unittest tests.test_vrt.VRTTestCases
 ```
