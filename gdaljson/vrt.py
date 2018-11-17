@@ -443,6 +443,7 @@ class VRTDataset(VRTBase):
             noData: Union[int, float] = None,
             resampleAlg: str = None,
             scaleParams: list = None,
+            **kwargs
     ) -> None:
 
         # Handle bands first
@@ -603,6 +604,7 @@ class VRTWarpedDataset(VRTBase):
             yRes: Union[int, float] = None,
             dstAlpha: bool = False,
             resample: str = "NearestNeighbour",
+            **kwargs
     ) -> None:
 
         self.warp_options.resample = resample
