@@ -12,7 +12,7 @@ from shapely.ops import transform as transform_geom
 from shapely.geometry import shape
 
 from gdaljson.projection import wkt
-from gdaljson.transformations import loads
+from gdaljson.transformations import loads, dumps
 
 maxval = {
     "Byte": 2**8,
@@ -101,6 +101,9 @@ class VRTBase(object):
             self.data = loads(vrt)
 
         self.__gt = GeoTransform(self.data["VRTDataset"]["GeoTransform"]["$"])
+
+    def __str__(self):
+        return dumps(self.data).decode('utf-8')
 
     @property
     def srs(self):
