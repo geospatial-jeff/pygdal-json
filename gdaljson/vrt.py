@@ -125,6 +125,12 @@ class VRTBase(object):
             return None
 
     @property
+    def is_geographic(self):
+        if self.srs.startswith('GEOG'):
+            return True
+        return False
+
+    @property
     def gt(self):
         return self.__gt
 
