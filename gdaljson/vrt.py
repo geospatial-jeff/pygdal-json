@@ -350,6 +350,13 @@ class VRTDataset(VRTBase):
         ]
 
     @property
+    def blocksize(self):
+        return [
+            self.data["VRTDataset"]["VRTRasterBand"][0]["SimpleSource"]["SourceProperties"]["@BlockXSize"],
+            self.data["VRTDataset"]["VRTRasterBand"][0]["SimpleSource"]["SourceProperties"]["@BlockYSize"]
+        ]
+
+    @property
     def src_rect(self):
         return [
             self.data["VRTDataset"]["VRTRasterBand"][0][
