@@ -3,5 +3,5 @@ geojson==2.4.1
 pyproj==1.9.5.1
 requests==2.20.0
 Shapely==1.6.4.post1
-git+https://github.com/geospatial-jeff/xmljson.git
+xmljson==0.1.9
 git+https://github.com/geospatial-jeff/pygdal-json-utils.git
