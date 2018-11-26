@@ -106,6 +106,10 @@ class VRTBase(object):
         return dumps(self.data).decode('utf-8')
 
     @property
+    def geogname(self):
+        return f'tlx_{self.tlx}__tly_{self.tly}__xres_{self.xres}__yres_{self.yres}__cols_{self.xsize}__rows_{self.ysize}'
+
+    @property
     def srs(self):
         try:
             return self.data["VRTDataset"]["SRS"]["$"]
