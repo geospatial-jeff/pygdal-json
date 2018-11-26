@@ -1,7 +1,7 @@
 import json
 from collections import OrderedDict
 from typing import Generator, Union
-from xmljson import badgerfish as bf
+from xmljsonfork import badgerfish as bf
 import xml.etree.ElementTree as ET
 import copy
 import math
